@@ -151,6 +151,33 @@ func (db *DB) Put(wo *WriteOptions, key, value []byte) error {
 	return nil
 }
 
+// Append writes data associated with a key to the database. (similar to Put except that it is appending)
+func (db *DB) Append(wo *WriteOptions, key, value []byte) error {
+	var errStr *C.char
+	// leveldb_put, _get, and _delete call memcpy() (by way of Memtable::Add)
+	// when called, so we do not need to worry about these []byte being
+	// reclaimed by GC.
+	var k, v *C.char
+	if len(key) != 0 {
+		k = (*C.char)(unsafe.Pointer(&key[0]))
+	}
+	if len(value) != 0 {
+		v = (*C.char)(unsafe.Pointer(&value[0]))
+	}
+
+	lenk := len(key)
+	lenv := len(value)
+	C.leveldb_append(
+		db.Ldb, wo.Opt, k, C.size_t(lenk), v, C.size_t(lenv), &errStr)
+
+	if errStr != nil {
+		gs := C.GoString(errStr)
+		C.leveldb_free(unsafe.Pointer(errStr))
+		return DatabaseError(gs)
+	}
+	return nil
+}
+
 // Get returns the data associated with the key from the database.
 //
 // If the key does not exist in the database, a nil []byte is returned. If the
